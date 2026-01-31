@@ -70,7 +70,7 @@ function calculate() {
     const currentMonthlyGross = currentWageInput * monthlyHours;
     const newMonthlyGross = newWage * monthlyHours;
     
-    // Net maaş hesaplama (2026 Türkiye vergi sistemi)
+    // Net maaş hesaplama - Mevcut durum
     const currentNet = calculateNetSalary(currentMonthlyGross);
     const newNet = calculateNetSalary(newMonthlyGross);
     
@@ -95,68 +95,62 @@ function calculate() {
         steps: steps,
         currentDeductions: currentNet.deductions,
         newDeductions: newNet.deductions,
-        monthlyHours: monthlyHours
+        monthlyHours: monthlyHours,
+        currentTaxRate: currentNet.taxRate,
+        newTaxRate: newNet.taxRate
     });
 }
 
 function calculateNetSalary(grossSalary) {
-    // 2026 Türkiye vergi ve kesinti oranları
-    
     // SGK İşçi Payı (%14)
     const sgkEmployee = grossSalary * 0.14;
     
     // İşsizlik Sigortası İşçi Payı (%1)
     const unemploymentInsurance = grossSalary * 0.01;
     
-    // Vergi Matrahı (Brüt - SGK - İşsizlik)
+    // Vergi Matrahı
     const taxBase = grossSalary - sgkEmployee - unemploymentInsurance;
     
-    // 2026 Gelir Vergisi Dilimleri (Yıllık)
-    // Aylık hesaplama için yıllık dilimleri 12'ye böleriz
-    const yearlyTaxBase = taxBase * 12;
+    // Gelir Vergisi Dilimi Belirleme (Aylık)
+    let taxRate = 0;
+    let incomeTax = 0;
     
-    let yearlyIncomeTax = 0;
-    
-    // 2026 tahmini vergi dilimleri (2025 rakamları enflasyon ile artırılmış)
-    if (yearlyTaxBase <= 150000) {
-        yearlyIncomeTax = yearlyTaxBase * 0.15;
-    } else if (yearlyTaxBase <= 380000) {
-        yearlyIncomeTax = 150000 * 0.15 + (yearlyTaxBase - 150000) * 0.20;
-    } else if (yearlyTaxBase <= 900000) {
-        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + (yearlyTaxBase - 380000) * 0.27;
-    } else if (yearlyTaxBase <= 4000000) {
-        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + 520000 * 0.27 + (yearlyTaxBase - 900000) * 0.35;
+    if (taxBase <= 12500) {
+        taxRate = 15;
+        incomeTax = taxBase * 0.15;
+    } else if (taxBase <= 32000) {
+        taxRate = 20;
+        incomeTax = 12500 * 0.15 + (taxBase - 12500) * 0.20;
+    } else if (taxBase <= 75000) {
+        taxRate = 27;
+        incomeTax = 12500 * 0.15 + 19500 * 0.20 + (taxBase - 32000) * 0.27;
+    } else if (taxBase <= 333000) {
+        taxRate = 35;
+        incomeTax = 12500 * 0.15 + 19500 * 0.20 + 43000 * 0.27 + (taxBase - 75000) * 0.35;
     } else {
-        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + 520000 * 0.27 + 3100000 * 0.35 + (yearlyTaxBase - 4000000) * 0.40;
+        taxRate = 40;
+        incomeTax = 12500 * 0.15 + 19500 * 0.20 + 43000 * 0.27 + 258000 * 0.35 + (taxBase - 333000) * 0.40;
     }
-    
-    // Aylık gelir vergisi
-    const incomeTax = yearlyIncomeTax / 12;
-    
-    // Asgari Geçim İndirimi (AGİ) - 2026 tahmini
-    // Bekâr için yaklaşık %15 indirim (değişkenlik gösterebilir)
-    const AGI = incomeTax * 0.15;
-    const incomeTaxAfterAGI = Math.max(0, incomeTax - AGI);
     
     // Damga Vergisi (%0.759)
     const stampTax = grossSalary * 0.00759;
     
     // Toplam Kesintiler
-    const totalDeductions = sgkEmployee + unemploymentInsurance + incomeTaxAfterAGI + stampTax;
+    const totalDeductions = sgkEmployee + unemploymentInsurance + incomeTax + stampTax;
     
     // Net Maaş
     const netSalary = grossSalary - totalDeductions;
     
     return {
         netSalary: netSalary,
+        taxRate: taxRate,
         deductions: {
             sgk: sgkEmployee,
             unemployment: unemploymentInsurance,
             incomeTax: incomeTax,
-            agi: AGI,
-            incomeTaxAfterAGI: incomeTaxAfterAGI,
             stampTax: stampTax,
-            total: totalDeductions
+            total: totalDeductions,
+            taxBase: taxBase
         }
     };
 }
@@ -196,9 +190,26 @@ function displayResults(data) {
     
     stepsList.innerHTML += `<div class="step-item"><strong>Sonuç:</strong> Yeni saat ücreti ${formatCurrency(data.newWage)} × ${data.monthlyHours} saat = ${formatCurrency(data.newMonthlyGross)} (Aylık Brüt)</div>`;
     
+    // Vergi dilimi bilgisi
+    const getTaxBracketInfo = (rate) => {
+        switch(rate) {
+            case 15: return "1. Dilim (0-12.500 TL)";
+            case 20: return "2. Dilim (12.501-32.000 TL)";
+            case 27: return "3. Dilim (32.001-75.000 TL)";
+            case 35: return "4. Dilim (75.001-333.000 TL)";
+            case 40: return "5. Dilim (333.001 TL+)";
+            default: return "Bilinmiyor";
+        }
+    };
+    
     // Mevcut kesintiler
     const currentDeductionsDiv = document.getElementById('currentDeductions');
     currentDeductionsDiv.innerHTML = `
+        <div class="tax-bracket-info">
+            <strong>📊 Vergi Dilimi: %${data.currentTaxRate}</strong><br>
+            <small>${getTaxBracketInfo(data.currentTaxRate)}</small><br>
+            <small>Vergi Matrahı: ${formatCurrency(data.currentDeductions.taxBase)}</small>
+        </div>
         <div class="deduction-item">
             <span>Brüt Maaş:</span>
             <span>${formatCurrency(data.currentMonthlyGross)}</span>
@@ -212,16 +223,8 @@ function displayResults(data) {
             <span>-${formatCurrency(data.currentDeductions.unemployment)}</span>
         </div>
         <div class="deduction-item">
-            <span>Gelir Vergisi (Hesaplanan):</span>
+            <span>Gelir Vergisi (%${data.currentTaxRate}):</span>
             <span>-${formatCurrency(data.currentDeductions.incomeTax)}</span>
-        </div>
-        <div class="deduction-item">
-            <span>AGİ (Asgari Geçim İndirimi):</span>
-            <span style="color: green;">+${formatCurrency(data.currentDeductions.agi)}</span>
-        </div>
-        <div class="deduction-item">
-            <span>Gelir Vergisi (AGİ Sonrası):</span>
-            <span>-${formatCurrency(data.currentDeductions.incomeTaxAfterAGI)}</span>
         </div>
         <div class="deduction-item">
             <span>Damga Vergisi (%0.759):</span>
@@ -239,7 +242,20 @@ function displayResults(data) {
     
     // Yeni kesintiler
     const newDeductionsDiv = document.getElementById('newDeductions');
+    
+    // Vergi dilimi değişikliği kontrolü
+    let taxBracketChange = '';
+    if (data.currentTaxRate !== data.newTaxRate) {
+        taxBracketChange = `<div class="tax-change-alert">⚠️ Vergi diliminiz %${data.currentTaxRate}'den %${data.newTaxRate}'e çıkacak!</div>`;
+    }
+    
     newDeductionsDiv.innerHTML = `
+        ${taxBracketChange}
+        <div class="tax-bracket-info">
+            <strong>📊 Vergi Dilimi: %${data.newTaxRate}</strong><br>
+            <small>${getTaxBracketInfo(data.newTaxRate)}</small><br>
+            <small>Vergi Matrahı: ${formatCurrency(data.newDeductions.taxBase)}</small>
+        </div>
         <div class="deduction-item">
             <span>Brüt Maaş:</span>
             <span>${formatCurrency(data.newMonthlyGross)}</span>
@@ -253,16 +269,8 @@ function displayResults(data) {
             <span>-${formatCurrency(data.newDeductions.unemployment)}</span>
         </div>
         <div class="deduction-item">
-            <span>Gelir Vergisi (Hesaplanan):</span>
+            <span>Gelir Vergisi (%${data.newTaxRate}):</span>
             <span>-${formatCurrency(data.newDeductions.incomeTax)}</span>
-        </div>
-        <div class="deduction-item">
-            <span>AGİ (Asgari Geçim İndirimi):</span>
-            <span style="color: green;">+${formatCurrency(data.newDeductions.agi)}</span>
-        </div>
-        <div class="deduction-item">
-            <span>Gelir Vergisi (AGİ Sonrası):</span>
-            <span>-${formatCurrency(data.newDeductions.incomeTaxAfterAGI)}</span>
         </div>
         <div class="deduction-item">
             <span>Damga Vergisi (%0.759):</span>
