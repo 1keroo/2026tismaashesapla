@@ -20,12 +20,23 @@ document.getElementById('currentWage').addEventListener('keypress', function(e) 
     }
 });
 
+document.getElementById('monthlyHours').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        calculate();
+    }
+});
+
 function calculate() {
     const currentWageInput = parseFloat(document.getElementById('currentWage').value);
     const monthlyHours = parseFloat(document.getElementById('monthlyHours').value) || 225;
     
     if (!currentWageInput || currentWageInput <= 0) {
         alert('Lütfen geçerli bir saat ücreti giriniz!');
+        return;
+    }
+    
+    if (!monthlyHours || monthlyHours <= 0) {
+        alert('Lütfen geçerli bir çalışma saati giriniz!');
         return;
     }
     
@@ -59,7 +70,7 @@ function calculate() {
     const currentMonthlyGross = currentWageInput * monthlyHours;
     const newMonthlyGross = newWage * monthlyHours;
     
-    // Net maaş hesaplama (bordro mantığına göre)
+    // Net maaş hesaplama (2026 Türkiye vergi sistemi)
     const currentNet = calculateNetSalary(currentMonthlyGross);
     const newNet = calculateNetSalary(newMonthlyGross);
     
@@ -83,39 +94,55 @@ function calculate() {
         increasePercent: increasePercent,
         steps: steps,
         currentDeductions: currentNet.deductions,
-        newDeductions: newNet.deductions
+        newDeductions: newNet.deductions,
+        monthlyHours: monthlyHours
     });
 }
 
 function calculateNetSalary(grossSalary) {
+    // 2026 Türkiye vergi ve kesinti oranları
+    
     // SGK İşçi Payı (%14)
     const sgkEmployee = grossSalary * 0.14;
     
     // İşsizlik Sigortası İşçi Payı (%1)
     const unemploymentInsurance = grossSalary * 0.01;
     
-    // Vergi Matrahı
+    // Vergi Matrahı (Brüt - SGK - İşsizlik)
     const taxBase = grossSalary - sgkEmployee - unemploymentInsurance;
     
-    // Gelir Vergisi (2024 dilimleri - yaklaşık)
-    let incomeTax = 0;
-    if (taxBase <= 110000) {
-        incomeTax = taxBase * 0.15;
-    } else if (taxBase <= 230000) {
-        incomeTax = 110000 * 0.15 + (taxBase - 110000) * 0.20;
-    } else if (taxBase <= 580000) {
-        incomeTax = 110000 * 0.15 + 120000 * 0.20 + (taxBase - 230000) * 0.27;
-    } else if (taxBase <= 3000000) {
-        incomeTax = 110000 * 0.15 + 120000 * 0.20 + 350000 * 0.27 + (taxBase - 580000) * 0.35;
+    // 2026 Gelir Vergisi Dilimleri (Yıllık)
+    // Aylık hesaplama için yıllık dilimleri 12'ye böleriz
+    const yearlyTaxBase = taxBase * 12;
+    
+    let yearlyIncomeTax = 0;
+    
+    // 2026 tahmini vergi dilimleri (2025 rakamları enflasyon ile artırılmış)
+    if (yearlyTaxBase <= 150000) {
+        yearlyIncomeTax = yearlyTaxBase * 0.15;
+    } else if (yearlyTaxBase <= 380000) {
+        yearlyIncomeTax = 150000 * 0.15 + (yearlyTaxBase - 150000) * 0.20;
+    } else if (yearlyTaxBase <= 900000) {
+        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + (yearlyTaxBase - 380000) * 0.27;
+    } else if (yearlyTaxBase <= 4000000) {
+        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + 520000 * 0.27 + (yearlyTaxBase - 900000) * 0.35;
     } else {
-        incomeTax = 110000 * 0.15 + 120000 * 0.20 + 350000 * 0.27 + 2420000 * 0.35 + (taxBase - 3000000) * 0.40;
+        yearlyIncomeTax = 150000 * 0.15 + 230000 * 0.20 + 520000 * 0.27 + 3100000 * 0.35 + (yearlyTaxBase - 4000000) * 0.40;
     }
+    
+    // Aylık gelir vergisi
+    const incomeTax = yearlyIncomeTax / 12;
+    
+    // Asgari Geçim İndirimi (AGİ) - 2026 tahmini
+    // Bekâr için yaklaşık %15 indirim (değişkenlik gösterebilir)
+    const AGI = incomeTax * 0.15;
+    const incomeTaxAfterAGI = Math.max(0, incomeTax - AGI);
     
     // Damga Vergisi (%0.759)
     const stampTax = grossSalary * 0.00759;
     
     // Toplam Kesintiler
-    const totalDeductions = sgkEmployee + unemploymentInsurance + incomeTax + stampTax;
+    const totalDeductions = sgkEmployee + unemploymentInsurance + incomeTaxAfterAGI + stampTax;
     
     // Net Maaş
     const netSalary = grossSalary - totalDeductions;
@@ -126,6 +153,8 @@ function calculateNetSalary(grossSalary) {
             sgk: sgkEmployee,
             unemployment: unemploymentInsurance,
             incomeTax: incomeTax,
+            agi: AGI,
+            incomeTaxAfterAGI: incomeTaxAfterAGI,
             stampTax: stampTax,
             total: totalDeductions
         }
@@ -155,6 +184,9 @@ function displayResults(data) {
     // Hesaplama adımları
     const stepsList = document.getElementById('stepsList');
     stepsList.innerHTML = '';
+    
+    stepsList.innerHTML += `<div class="step-item"><strong>Başlangıç:</strong> Saat ücreti ${formatCurrency(data.currentWage)} × ${data.monthlyHours} saat = ${formatCurrency(data.currentMonthlyGross)} (Aylık Brüt)</div>`;
+    
     data.steps.forEach(step => {
         const stepDiv = document.createElement('div');
         stepDiv.className = 'step-item';
@@ -162,28 +194,46 @@ function displayResults(data) {
         stepsList.appendChild(stepDiv);
     });
     
+    stepsList.innerHTML += `<div class="step-item"><strong>Sonuç:</strong> Yeni saat ücreti ${formatCurrency(data.newWage)} × ${data.monthlyHours} saat = ${formatCurrency(data.newMonthlyGross)} (Aylık Brüt)</div>`;
+    
     // Mevcut kesintiler
     const currentDeductionsDiv = document.getElementById('currentDeductions');
     currentDeductionsDiv.innerHTML = `
         <div class="deduction-item">
+            <span>Brüt Maaş:</span>
+            <span>${formatCurrency(data.currentMonthlyGross)}</span>
+        </div>
+        <div class="deduction-item">
             <span>SGK İşçi Payı (%14):</span>
-            <span>${formatCurrency(data.currentDeductions.sgk)}</span>
+            <span>-${formatCurrency(data.currentDeductions.sgk)}</span>
         </div>
         <div class="deduction-item">
             <span>İşsizlik Sigortası (%1):</span>
-            <span>${formatCurrency(data.currentDeductions.unemployment)}</span>
+            <span>-${formatCurrency(data.currentDeductions.unemployment)}</span>
         </div>
         <div class="deduction-item">
-            <span>Gelir Vergisi:</span>
-            <span>${formatCurrency(data.currentDeductions.incomeTax)}</span>
+            <span>Gelir Vergisi (Hesaplanan):</span>
+            <span>-${formatCurrency(data.currentDeductions.incomeTax)}</span>
+        </div>
+        <div class="deduction-item">
+            <span>AGİ (Asgari Geçim İndirimi):</span>
+            <span style="color: green;">+${formatCurrency(data.currentDeductions.agi)}</span>
+        </div>
+        <div class="deduction-item">
+            <span>Gelir Vergisi (AGİ Sonrası):</span>
+            <span>-${formatCurrency(data.currentDeductions.incomeTaxAfterAGI)}</span>
         </div>
         <div class="deduction-item">
             <span>Damga Vergisi (%0.759):</span>
-            <span>${formatCurrency(data.currentDeductions.stampTax)}</span>
+            <span>-${formatCurrency(data.currentDeductions.stampTax)}</span>
         </div>
         <div class="deduction-item">
-            <span>Toplam Kesinti:</span>
-            <span>${formatCurrency(data.currentDeductions.total)}</span>
+            <span><strong>Toplam Kesinti:</strong></span>
+            <span><strong>-${formatCurrency(data.currentDeductions.total)}</strong></span>
+        </div>
+        <div class="deduction-item" style="background: #e8f5e9; margin-top: 10px; padding: 10px; border-radius: 5px;">
+            <span><strong>NET MAAŞ:</strong></span>
+            <span><strong>${formatCurrency(data.currentNet)}</strong></span>
         </div>
     `;
     
@@ -191,24 +241,40 @@ function displayResults(data) {
     const newDeductionsDiv = document.getElementById('newDeductions');
     newDeductionsDiv.innerHTML = `
         <div class="deduction-item">
+            <span>Brüt Maaş:</span>
+            <span>${formatCurrency(data.newMonthlyGross)}</span>
+        </div>
+        <div class="deduction-item">
             <span>SGK İşçi Payı (%14):</span>
-            <span>${formatCurrency(data.newDeductions.sgk)}</span>
+            <span>-${formatCurrency(data.newDeductions.sgk)}</span>
         </div>
         <div class="deduction-item">
             <span>İşsizlik Sigortası (%1):</span>
-            <span>${formatCurrency(data.newDeductions.unemployment)}</span>
+            <span>-${formatCurrency(data.newDeductions.unemployment)}</span>
         </div>
         <div class="deduction-item">
-            <span>Gelir Vergisi:</span>
-            <span>${formatCurrency(data.newDeductions.incomeTax)}</span>
+            <span>Gelir Vergisi (Hesaplanan):</span>
+            <span>-${formatCurrency(data.newDeductions.incomeTax)}</span>
+        </div>
+        <div class="deduction-item">
+            <span>AGİ (Asgari Geçim İndirimi):</span>
+            <span style="color: green;">+${formatCurrency(data.newDeductions.agi)}</span>
+        </div>
+        <div class="deduction-item">
+            <span>Gelir Vergisi (AGİ Sonrası):</span>
+            <span>-${formatCurrency(data.newDeductions.incomeTaxAfterAGI)}</span>
         </div>
         <div class="deduction-item">
             <span>Damga Vergisi (%0.759):</span>
-            <span>${formatCurrency(data.newDeductions.stampTax)}</span>
+            <span>-${formatCurrency(data.newDeductions.stampTax)}</span>
         </div>
         <div class="deduction-item">
-            <span>Toplam Kesinti:</span>
-            <span>${formatCurrency(data.newDeductions.total)}</span>
+            <span><strong>Toplam Kesinti:</strong></span>
+            <span><strong>-${formatCurrency(data.newDeductions.total)}</strong></span>
+        </div>
+        <div class="deduction-item" style="background: #e8f5e9; margin-top: 10px; padding: 10px; border-radius: 5px;">
+            <span><strong>NET MAAŞ:</strong></span>
+            <span><strong>${formatCurrency(data.newNet)}</strong></span>
         </div>
     `;
     
