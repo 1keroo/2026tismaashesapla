@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TİS2026 Zam Oranı Hesaplama Aracı</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Uyarı Modal -->
+    <div id="warningModal" class="modal">
+        <div class="modal-content">
+            <div class="warning-icon">⚠️</div>
+            <h2>Önemli Uyarı</h2>
+            <div class="warning-text">
+                <p><strong>Bu resmi bir hesaplama aracı değildir, bir kamu hizmetidir.</strong></p>
+                <p>Bu hesaplayıcı <strong>tahmini değerler</strong> sunmaktadır.</p>
+                <p><strong>Hesaplamalar kesinlik taşımamaktadır!</strong></p>
+                <p>Gerçek maaş değerleri ile farklılıklar olabilir. Kesin bilgi için lütfen sendika temsilciniz ile iletişime geçiniz.</p>
+                <p class="note">* Tüm hesaplamalar 2026 TİS anlaşması şartlarına göre tahmini olarak yapılmaktadır.</p>
+            </div>
+            <button id="continueBtn" class="continue-btn">Anladım, Devam Et</button>
+        </div>
+    </div>
+
+    <!-- Ana İçerik -->
+    <div id="mainContent" class="main-content hidden">
+        <div class="container">
+            <header>
+                <h1>TİS2026 Zam Oranı Hesaplama Aracı</h1>
+                <p class="subtitle">Türk Metal Sendikası 2026 Zam Hesaplaması</p>
+            </header>
+
+            <div class="calculator-card">
+                <div class="input-section">
+                    <label for="currentWage">Mevcut Saat Ücretiniz (TL)</label>
+                    <input 
+                        type="number" 
+                        id="currentWage" 
+                        placeholder="223,75" 
+                        step="0.01"
+                        min="0"
+                    >
+                    
+                    <div class="working-hours">
+                        <label for="monthlyHours">Aylık Çalışma Saati</label>
+                        <input 
+                            type="number" 
+                            id="monthlyHours" 
+                            value="225" 
+                            step="0.5"
+                            min="0"
+                        >
+                        <small>Varsayılan: 225 saat (7,5 saat x 30 gün)</small>
+                    </div>
+
+                    <button id="calculateBtn" class="calculate-btn">Hesapla</button>
+                </div>
+
+                <div id="rulesSection" class="rules-section">
+                    <h3>Hesaplama Kuralları:</h3>
+                    <ol>
+                        <li>140 TL altındaki ücretlere 10 TL iyileştirme (max 140 TL)</li>
+                        <li>Tüm ücretlere %20 zam</li>
+                        <li>Seyyanen 17,61 TL ekleme</li>
+                    </ol>
+                </div>
+
+                <div id="results" class="results hidden">
+                    <h2>Hesaplama Sonuçları</h2>
+                    
+                    <div class="result-grid">
+                        <!-- Mevcut Durum -->
+                        <div class="result-card current">
+                            <h3>📊 Mevcut Durum</h3>
+                            <div class="result-item">
+                                <span>Saat Ücreti:</span>
+                                <strong id="currentHourly">0,00 TL</strong>
+                            </div>
+                            <div class="result-item">
+                                <span>Aylık Brüt:</span>
+                                <strong id="currentGross">0,00 TL</strong>
+                            </div>
+                            <div class="result-item highlight">
+                                <span>Aylık Net:</span>
+                                <strong id="currentNet">0,00 TL</strong>
+                            </div>
+                        </div>
+
+                        <!-- Yeni Durum -->
+                        <div class="result-card new">
+                            <h3>🎯 Yeni Durum (TİS2026)</h3>
+                            <div class="result-item">
+                                <span>Saat Ücreti:</span>
+                                <strong id="newHourly">0,00 TL</strong>
+                            </div>
+                            <div class="result-item">
+                                <span>Aylık Brüt:</span>
+                                <strong id="newGross">0,00 TL</strong>
+                            </div>
+                            <div class="result-item highlight">
+                                <span>Aylık Net:</span>
+                                <strong id="newNet">0,00 TL</strong>
+                            </div>
+                        </div>
+
+                        <!-- Artış -->
+                        <div class="result-card increase">
+                            <h3>📈 Artış Miktarı</h3>
+                            <div class="result-item">
+                                <span>Saat Ücreti Artışı:</span>
+                                <strong id="hourlyIncrease">0,00 TL</strong>
+                            </div>
+                            <div class="result-item">
+                                <span>Aylık Brüt Artış:</span>
+                                <strong id="grossIncrease">0,00 TL</strong>
+                            </div>
+                            <div class="result-item highlight">
+                                <span>Aylık Net Artış:</span>
+                                <strong id="netIncrease">0,00 TL</strong>
+                            </div>
+                            <div class="result-item">
+                                <span>Artış Oranı:</span>
+                                <strong id="increasePercent">%0,00</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detaylı Hesaplama Adımları -->
+                    <div class="calculation-steps">
+                        <h3>📋 Hesaplama Adımları</h3>
+                        <div id="stepsList"></div>
+                    </div>
+
+                    <!-- Vergi Detayları -->
+                    <div class="tax-details">
+                        <h3>💰 Vergi ve Kesinti Detayları</h3>
+                        <div class="tax-grid">
+                            <div class="tax-card">
+                                <h4>Mevcut Kesintiler</h4>
+                                <div id="currentDeductions"></div>
+                            </div>
+                            <div class="tax-card">
+                                <h4>Yeni Kesintiler</h4>
+                                <div id="newDeductions"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="disclaimer">
+                        <strong>⚠️ Önemli Not:</strong> Bu hesaplamalar tahmini değerlerdir. 
+                        Gerçek bordronuzda ek ödemeler, kesintiler veya farklılıklar olabilir. 
+                        Kesin bilgi için sendika temsilciniz ile iletişime geçiniz.
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p>🔧 TİS2026 Zam Hesaplama Aracı - Türk Metal İşçileri için Tahmini Hesaplama</p>
+                <p class="footer-note">Bu araç resmi değildir ve sadece bilgilendirme amaçlıdır.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
